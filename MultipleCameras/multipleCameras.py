@@ -16,9 +16,11 @@ CAPTURE_SECONDS = 5
 RESOLUTION = (640, 480)
 MAX_WIDTH_WINDOW = 1920
 OUTPUT_PATH="captured_data"
+CAPTURE_RGB = False
+CAPTURE_SKELETON = False
 
 imgs2take = FRAME_RATE * CAPTURE_SECONDS
-path = None
+capture = False
 
 context = rs.context()
 devices = context.devices
@@ -26,9 +28,6 @@ devices = context.devices
 if len(devices) == 0:
     print("No RealSense device connected. Exiting.")
     exit()
-
-if (not os.path.exists(path)):
-  os.makedirs(path)
 
 # Pipeline
 pipelines = []
@@ -42,6 +41,7 @@ for i, device in enumerate(devices):
 
   # Enable streams
   config.enable_stream(rs.stream.color, RESOLUTION[0], RESOLUTION[1], rs.format.bgr8, FRAME_RATE)
+  config.enable_stream(rs.stream.depth, RESOLUTION[0], RESOLUTION[1], rs.format.z16, FRAME_RATE)
 
   # Start pipeline
   pipeline.start(config)
@@ -50,13 +50,14 @@ for i, device in enumerate(devices):
   print(f"Device {i} connected, serial number: {serial}")
 
 def showCamera(i, pipeline):
-  capture = False
+  global capture
   imgsCount = 0
   detector = PoseDetector()
   object_to_track = range(0,33)
 
   while True:
     frames = pipeline.wait_for_frames()
+    frame_depth = frames.get_depth_frame()
     frame_color = frames.get_color_frame()
 
     if not frame_color:
@@ -68,41 +69,68 @@ def showCamera(i, pipeline):
     lmList = detector.getPosition(pose)
 
     if len(lmList) != 0:
-        for objet in object_to_track:
-            _, x, y = lmList[objet]
-            if (x < 0 or x > RESOLUTION[0]):
-                del objet
-                continue
-            if (y < 0 or y > RESOLUTION[1]):
-                del objet
-                continue
+      for objet in object_to_track:
+          _, x, y = lmList[objet]
+          if (x < 0 or x >= RESOLUTION[0]):
+            lmList[objet] = [0, 0, 0, 0]
+            continue
+          if (y < 0 or y >= RESOLUTION[1]):
+            lmList[objet] = [0, 0, 0, 0]
+            continue
+          z = frame_depth.get_distance(x, y)
+          if (z <= 0): 
+            lmList[objet] = [0, 0, 0, 0]
+            continue
+
+          lmList[objet].append(z)
+      # Delete invalid points
+      lmList = [v for v in lmList if v != [0, 0, 0, 0]]
 
     imgs[i] = pose
     skeletons[i] = skeleton
 
     if capture:
+      # Create output path if not exists
+      if not 'path' in locals():
+        now  = datetime.now() # Get current timestamp
+        path = f"{OUTPUT_PATH}/{now.strftime('%Y_%m_%d_%H_%M_%S')}" # Get timestamp formatted
+
+      capture = True
+      xyz_path = f"{path}/camera_{i + 1}/xyz"
+      rgb_path = f"{path}/camera_{i + 1}/rgb"
+      skeleton_path = f"{path}/camera_{i + 1}/skeleton"
+
+      if not os.path.exists(xyz_path):
+        os.makedirs(xyz_path)
+      if not os.path.exists(rgb_path) and CAPTURE_RGB:
+        os.makedirs(rgb_path)
+      if not os.path.exists(skeleton_path) and CAPTURE_SKELETON:
+        os.makedirs(skeleton_path)
+
       cv2.putText(pose, f'Captures: {imgsCount}/{imgs2take}', (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2,
                   cv2.LINE_AA)
 
       # Save
       # Save the points
       np.savetxt(
-          fname     = f"{xyz_path}/capture_{imgsCount}.csv",
+          fname     = f"{xyz_path}/capture_{imgsCount + 1}.csv",
           X         = lmList,
           delimiter = ","
       )
 
       # Save the image
-      cv2.imwrite(
-          f"{rgb_path}/capture_{i + 1}.png",
-          pose
-      )
+      if CAPTURE_RGB:
+        cv2.imwrite(
+            f"{rgb_path}/capture_{imgsCount + 1}.png",
+            pose
+        )
 
       # Save the skeleton
-      cv2.imwrite(
-          f"{skeleton_path}/capture_{i + 1}.png",
-          skeleton
-      )
+      if CAPTURE_SKELETON:
+        cv2.imwrite(
+            f"{skeleton_path}/capture_{imgsCount + 1}.png",
+            skeleton
+        )
       
       imgsCount += 1
 
@@ -114,22 +142,7 @@ def showCamera(i, pipeline):
 
     # Start the capture
     if cv2.waitKey(1) == 32:
-      # Create output path if not exists
-      if path == None:
-        now  = datetime.now() # Get current timestamp
-        path = f"{OUTPUT_PATH}/{now.strftime('%Y_%m_%d_%H_%M_%S')}" # Get timestamp formatted
-
       capture = True
-      xyz_path = f"{path}/camera_{i}/xyz"
-      rgb_path = f"{path}/camera_{i}/rgb"
-      skeleton_path = f"{path}/camera_{i}/skeleton"
-
-      if not os.path.exists(xyz_path):
-        os.makedirs(xyz_path)
-      if not os.path.exists(rgb_path):
-        os.makedirs(rgb_path)
-      if not os.path.exists(skeleton_path):
-        os.makedirs(skeleton_path)
 
 def updateWindow():
   arrange_color = np.concatenate(imgs, axis=1)
