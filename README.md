@@ -21,7 +21,7 @@ Saves the point cloud in x,y,z format
 ...
 ```
 
-### MultipleCameras
+### Skeleton Tracker w/ MultipleCameras
 The code can handle multiple intel realsense cameras and can get the skeleton and xyz points from each camera.
 
 It can saves rgb images with the overlayed skeletons.
