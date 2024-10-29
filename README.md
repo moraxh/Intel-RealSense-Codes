@@ -11,7 +11,7 @@ It can saves the point cloud (in png or csv format), the depth image and the rgb
 <img src="media/PointCloud/rgb.png" width="49%">
 <img src="media/PointCloud/pointcloud.png" width="49%">
 
-Saves the point cloud in x,y,z format
+Saves the point cloud in x, y, z format
 ```csv
 1.368744205683469772e-02,7.372751832008361816e-02,-3.430000245571136475e-01
 1.426214165985584259e-02,7.372751832008361816e-02,-3.430000245571136475e-01
@@ -29,7 +29,7 @@ It can saves rgb images with the overlayed skeletons.
 <img src="media/Multicamera/rgb.gif" width="49%">
 <img src="media/Multicamera/skeleton.gif" width="49%">
 
-It also save the skeleton points in a #_point,x,y,z format.
+It also save the skeleton points in a #_point, x, y, z format.
 ```csv
 0.000000000000000000e+00,4.290000000000000000e+02,6.100000000000000000e+01,2.995000123977661133e+00
 1.000000000000000000e+00,4.330000000000000000e+02,5.400000000000000000e+01,3.074000120162963867e+00
