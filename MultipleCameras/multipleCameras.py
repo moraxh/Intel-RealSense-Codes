@@ -12,7 +12,7 @@ warnings.filterwarnings("ignore")
 from PoseDetector import PoseDetector
 
 FRAME_RATE = 30
-CAPTURE_SECONDS = 5
+CAPTURE_SECONDS = 10
 RESOLUTION = (640, 480)
 MAX_WIDTH_WINDOW = 1920
 OUTPUT_PATH="captured_data"
@@ -137,6 +137,7 @@ def showCamera(i, pipeline):
       if (imgsCount >= imgs2take):
         imgsCount = 0
         capture = False
+        del path
 
     updateWindow()
 
