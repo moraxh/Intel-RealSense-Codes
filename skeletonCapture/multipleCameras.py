@@ -15,9 +15,9 @@ FRAME_RATE = 30
 CAPTURE_SECONDS = 2
 RESOLUTION = (640, 480)
 MAX_WIDTH_WINDOW = 1920
-OUTPUT_PATH="captured_data"
-CAPTURE_RGB = False
-CAPTURE_SKELETON = False
+OUTPUT_PATH=os.path.join(os.path.dirname(__file__), "captured_data")
+CAPTURE_RGB = True
+CAPTURE_SKELETON = True
 
 imgs2take = FRAME_RATE * CAPTURE_SECONDS
 capture = False
