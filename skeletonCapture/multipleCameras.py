@@ -1,7 +1,7 @@
 import warnings
 import os
 import threading
-import time
+import winsound
 import cv2
 import pyrealsense2 as rs
 import numpy as np
@@ -12,12 +12,12 @@ warnings.filterwarnings("ignore")
 from PoseDetector import PoseDetector
 
 FRAME_RATE = 30
-CAPTURE_SECONDS = 10
+CAPTURE_SECONDS = 2
 RESOLUTION = (640, 480)
 MAX_WIDTH_WINDOW = 1920
 OUTPUT_PATH="captured_data"
-CAPTURE_RGB = True
-CAPTURE_SKELETON = True
+CAPTURE_RGB = False
+CAPTURE_SKELETON = False
 
 imgs2take = FRAME_RATE * CAPTURE_SECONDS
 capture = False
@@ -49,8 +49,32 @@ for i, device in enumerate(devices):
 
   print(f"Device {i} connected, serial number: {serial}")
 
-def showCamera(i, pipeline):
-  global capture
+def save_capture(xyz_path, rgb_path, skeleton_path, lmList, pose, skeleton, imgsCount):
+    # Save XYZ data
+    np.savetxt(
+        fname=f"{xyz_path}/capture_{imgsCount + 1}.csv",
+        X=lmList,
+        delimiter=","
+    )
+
+    # Save the RGB image
+    if CAPTURE_RGB:
+        cv2.imwrite(
+            f"{rgb_path}/capture_{imgsCount + 1}.png",
+            pose
+        )
+
+    # Save the skeleton
+    if CAPTURE_SKELETON:
+        cv2.imwrite(
+            f"{skeleton_path}/capture_{imgsCount + 1}.png",
+            skeleton
+        )
+
+def showCamera(i, pipeline, singleCamera):
+  global globalCapture
+  globalCapture = False
+  capture = False
   imgsCount = 0
   detector = PoseDetector()
   object_to_track = range(0,33)
@@ -72,33 +96,37 @@ def showCamera(i, pipeline):
       for objet in object_to_track:
           _, x, y = lmList[objet]
           if (x < 0 or x >= RESOLUTION[0]):
-            lmList[objet] = [0, 0, 0, 0]
+            lmList[objet] = [lmList[objet][0], 0, 0, 0]
             continue
           if (y < 0 or y >= RESOLUTION[1]):
-            lmList[objet] = [0, 0, 0, 0]
+            lmList[objet] = [lmList[objet][0], 0, 0, 0]
             continue
           z = frame_depth.get_distance(x, y)
           if (z <= 0): 
-            lmList[objet] = [0, 0, 0, 0]
+            lmList[objet] = [lmList[objet][0], 0, 0, 0]
             continue
 
           lmList[objet].append(z)
-      # Delete invalid points
-      lmList = [v for v in lmList if v != [0, 0, 0, 0]]
 
     imgs[i] = pose
     skeletons[i] = skeleton
 
-    if capture:
+    if capture or globalCapture:
       # Create output path if not exists
       if not 'path' in locals():
         now  = datetime.now() # Get current timestamp
         path = f"{OUTPUT_PATH}/{now.strftime('%Y_%m_%d_%H_%M_%S')}" # Get timestamp formatted
 
       capture = True
-      xyz_path = f"{path}/camera_{i + 1}/xyz"
-      rgb_path = f"{path}/camera_{i + 1}/rgb"
-      skeleton_path = f"{path}/camera_{i + 1}/skeleton"
+
+      if singleCamera:
+        xyz_path = f"{path}/xyz"
+        rgb_path = f"{path}/rgb"
+        skeleton_path = f"{path}/skeleton"
+      else:
+        xyz_path = f"{path}/camera_{i + 1}/xyz"
+        rgb_path = f"{path}/camera_{i + 1}/rgb"
+        skeleton_path = f"{path}/camera_{i + 1}/skeleton"
 
       if not os.path.exists(xyz_path):
         os.makedirs(xyz_path)
@@ -110,40 +138,27 @@ def showCamera(i, pipeline):
       cv2.putText(pose, f'Captures: {imgsCount}/{imgs2take}', (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2,
                   cv2.LINE_AA)
 
-      # Save
-      # Save the points
-      np.savetxt(
-          fname     = f"{xyz_path}/capture_{imgsCount + 1}.csv",
-          X         = lmList,
-          delimiter = ","
-      )
+      # Save the capture
+      threading.Thread(target=save_capture, args=(xyz_path, rgb_path, skeleton_path, lmList, pose, skeleton, imgsCount)).start()
 
-      # Save the image
-      if CAPTURE_RGB:
-        cv2.imwrite(
-            f"{rgb_path}/capture_{imgsCount + 1}.png",
-            pose
-        )
-
-      # Save the skeleton
-      if CAPTURE_SKELETON:
-        cv2.imwrite(
-            f"{skeleton_path}/capture_{imgsCount + 1}.png",
-            skeleton
-        )
-      
       imgsCount += 1
 
       if (imgsCount >= imgs2take):
+        playSound()
         imgsCount = 0
         capture = False
+        globalCapture = False
         del path
 
     updateWindow()
 
     # Start the capture
     if cv2.waitKey(1) == 32:
+      globalCapture = True
       capture = True
+
+def playSound():
+  winsound.MessageBeep(winsound.MB_OK)
 
 def updateWindow():
   arrange_color = np.concatenate(imgs, axis=1)
@@ -162,7 +177,7 @@ skeletons = [np.zeros((RESOLUTION[1], RESOLUTION[0], 3), np.uint8) for i in rang
 
 try:
   for i, pipeline in enumerate(pipelines):
-    thread = threading.Thread(target=showCamera, args=(i, pipeline))
+    thread = threading.Thread(target=showCamera, args=(i, pipeline, len(pipelines) == 1))
     threads.append(thread)
     thread.start()
 finally:
